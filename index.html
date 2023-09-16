@@ -15,7 +15,7 @@
     font-family: 'Source Serif Pro', serif;
   }
 </style>
-<title>CS180 Project 1</title>
+<title>CS180 Project 2</title>
 <meta http-equiv="content-type" content="text/html; charset=utf-8" />
 <link href="https://fonts.googleapis.com/css?family=PT+Serif|Source+Serif+Pro" rel="stylesheet">
 </head>
@@ -24,126 +24,457 @@
 <body>
 
 <h1 align="middle">CS180 Intro to Computer Vision and Computational Photography</h1>
-<h1 align="middle">Project 1 by Wentinn Liao</h1>
+<h1 align="middle">Project 2 by Wentinn Liao</h1>
 
 <div>
 
-<h2 align="middle">Overview</h2>
-<p>The core of the algorithm uses image histogram, edge detection, and image cross correlation to align the RGB channels. The reasoning behind this approach is that edges where color changes occur are likely to be present in all three channels, and therefore if we can magnifiy the edges, then this transform would be a good candidate for straightforward cross-correlation.</p>
+    
+<h2 align="middle">Part 1</h2>
+<p>The gradient of the image with respect to <strong>x</strong> and <strong>y</strong> are taken by convolving the image with the provided filters <strong>Dx</strong> and <strong>Dy</strong>. If we take only take valid convolution, then we would get a dimension mismatch since each convolution reduces their respective dimension by length 1. Therefore, we use same size convolution (letting scipy decide which size to pad), stack them with <strong>np.stack</strong> and take the norm with <strong>np.linalg.norm</strong> with axis <strong>0</strong>.</p>
 
-<p>The image histogram transform is used as a means to sharpen the image before edge detection, and is implemented by flattening and sorting the channel, then using <strong>np.searchsorted</strong> to determine what proportion of pixels lie below a given pixel value. Edge detection is implemented through a 3x3 Sobel Kernel, and calculating the Euclidean norm of the empirical color gradients. This norm is scaled linearly to <strong>[-5, 5]</strong> and passed through a sigmoid function to strengthen more prominent edges and weaken the lesser edges. This is then passed into (unnormalized) cross-correlation, which is maximized over a small window of displacements in order to find the optimal one.</p>
-
-<div>
-
-<h2 align="middle">Speedup</h2>
-<p>My algorithm does not explicitly construct a pyramid, but rather recursively constructs lower (half) resolution images until the images size is small enough to be processed directly. Empirically, this is found to be around 600px, which is also around the size of the largest small image. If the image is too large, then it recursively finds the optimal displacement for a half resolution image, doubles the displacement, and uses it as the center of the new search window. An additional speedup is used, which is decaying window size, meaning that as we go from low to high resolution, the window size decays exponentially. The goal of this is is to reduce computations on higher resolution images. This optimization performs well because searches on a lower resolution image will get us in the general ballpark of the optimal displacement, which allows the search window to be smaller for subsequent resolutions. In implementation, the window for low resolution images is <strong>[-40, 40] x [-40, 40]</strong> and decays by <strong>50%</strong> for each recursive call. The runtime is instant for small jpg images and around <strong>40s</strong> for large images, which is acceptable for what I care about.</p>
-
-<div>
-
-<h2 align="middle">Results</h2>
-<p>Shown below are the results of the implemented algorithm. The algorithm performs reasonably well and produces images that are not harmful to the naked eye unlike the unaligned images. However, visual examination on images such as <strong>onion church</strong> and <strong>monastery</strong> shows some of the alignments are marginally incorrect, for example exhibiting a small green or red shadow in the x or y direction. Attempts to fix this included quantization, which merges pixels that are likely to be part of the same object based on the predicted colors, and refinement which looks for these artifacts and makes miniscule changes. This algorithm performs poorly on some images with very fine details that produce many edges. This causes some alignments to be sufficiently good to be determined the "optimal" alignment.</p>
-
-<h3 align="middle">Example Images</h3>
+<h3 align="left">Part 1.1</h3>
+<p>Shown below is the result of edge detection using the magnitude of the gradient. The chosen threshold is <strong>0.23</strong> which captures most of the edges but still leaves some small artifacts.</p>
 <div align="middle">
-    <table style="width=100%">
+    <table>
         <tr>
             <td>
-                <img src="images/cathedral.jpg" align="middle" width="400px"/>
-                <figcaption align="middle">Cathedral. R: (0, 0), G: (-7, -1), B: (-12, -3) </figcaption>
+                <img src="images/1.1 Dx.jpg" align="middle" height="360px"/>
+                <figcaption align="middle">Gradient of image with respect to x.</figcaption>
             </td>
             <td>
-                <img src="images/church.jpg" align="middle" width="400px"/>
-                <figcaption align="middle">Church. R: (0, 0), G: (-33, 8), B: (-58, 4)</figcaption>
+                <img src="images/1.1 Dy.jpg" align="middle" height="360px"/>
+                <figcaption align="middle">Gradient of image with respect to y.</figcaption>
             </td>
         </tr>
         <tr>
             <td>
-                <img src="images/emir.jpg" align="middle" width="400px"/>
-                <figcaption align="middle">Emir. R: (0, 0), G: (-58, -17), B: (-107, -41)</figcaption>
+                <img src="images/1.1 Gradient Magnitude.jpg" align="middle" height="360px"/>
+                <figcaption align="middle">Gradient magnitude.</figcaption>
             </td>
             <td>
-                <img src="images/harvesters.jpg" align="middle" width="400px"/>
-                <figcaption align="middle">Harvesters. R: (0, 0), G: (-64, 3), B: (-124, -11)</figcaption>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <img src="images/icon.jpg" align="middle" width="400px"/>
-                <figcaption align="middle">Icon. R: (0, 0), G: (-48, -5), B: (-90, -23)</figcaption>
-            </td>
-            <td>
-                <img src="images/lady.jpg" align="middle" width="400px"/>
-                <figcaption align="middle">Lady. R: (0, 0), G: (-63, -3), B: (-119, -12)</figcaption>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <img src="images/melons.jpg" align="middle" width="400px"/>
-                <figcaption align="middle">Melons. R: (0, 0), G: (-96, -4), B: (-177, -11)</figcaption>
-            </td>
-            <td>
-                <img src="images/monastery.jpg" align="middle" width="400px"/>
-                <figcaption align="middle">Monastery. R: (0, 0), G: (-6, -1), B: (-3, -3)</figcaption>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <img src="images/onion_church.jpg" align="middle" width="400px"/>
-                <figcaption align="middle">Onion Church. R: (0, 0), G: (-58, -10), B: (-107, -35)</figcaption>
-            </td>
-            <td>
-                <img src="images/sculpture.jpg" align="middle" width="400px"/>
-                <figcaption align="middle">Sculpture. R: (0, 0), G: (-106, 16), B: (-139, 27)</figcaption>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <img src="images/self_portrait.jpg" align="middle" width="400px"/>
-                <figcaption align="middle">Self Portrait. R: (0, 0), G: (-98, -8), B: (-176, -37)</figcaption>
-            </td>
-            <td>
-                <img src="images/three_generations.jpg" align="middle" width="400px"/>
-                <figcaption align="middle">Three Generations. R: (0, 0), G: (-57, -1), B: (-108, -8)</figcaption>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <img src="images/tobolsk.jpg" align="middle" width="400px"/>
-                <figcaption align="middle">Tobolsk. R: (0, 0), G: (-4, -1), B: (-7, -4)</figcaption>
-            </td>
-            <td>
-                <img src="images/train.jpg" align="middle" width="400px"/>
-                <figcaption align="middle">Train. R: (0, 0), G: (-44, -27), B: (-85, -29)</figcaption>
+                <img src="images/1.1 Binary Gradient Magnitude.jpg" align="middle" height="360px"/>
+                <figcaption align="middle">Binary gradient magnitude with threshold 0.23.</figcaption>
             </td>
         </tr>
     </table>
 </div>
 
-<h3 align="middle">Images from the Prokudin-Gorskii Collection</h3>
+
+<h3 align="left">Part 1.2</h3>
+<p>Shown below is the result of edge detection as a result of using finite difference and Gaussian blur. There are no differences between the two methods of computing the new edges because convolution is both commutative and associative. It can be observed however that the threshold is now much lower than previously which makes sense because blurring also reduces the edge sharpness, while also mitigating the "edges" produced by noise. The new threshold is <strong>0.1</strong>, but the edges are more well defined and there are few artifacts.</p>
 <div align="middle">
-    <table style="width=100%">
+    <table>
         <tr>
             <td>
-                <img src="images/Belaia River.jpg" align="middle" width="400px"/>
-                <figcaption align="middle">Belaia River. R: (0, 0), G: (-68, 18), B: (-120, -36)</figcaption>
+                <img src="images/1.2 Separate Convolution.png" align="middle" height="360px"/>
+                <figcaption align="middle">Edge detection as two operations.</figcaption>
             </td>
             <td>
-                <img src="images/Etruscan Vases.jpg" align="middle" width="400px"/>
-                <figcaption align="middle">Etruscan Vases. R: (0, 0), G: (-86, -2), B: (-111, -7)</figcaption>
+                <img src="images/1.2 Single Convolution.png" align="middle" height="360px"/>
+                <figcaption align="middle">Edge detection as a single operation.</figcaption>
             </td>
         </tr>
         <tr>
             <td>
-                <img src="images/Milan Cathedral.jpg" align="middle" width="400px"/>
-                <figcaption align="middle">Milan Cathedral. R: (0, 0), G: (-52, -10), B: (-108, -25)</figcaption>
+                <img src="images/1.2 Binary Separate Convolution.png" align="middle" height="360px"/>
+                <figcaption align="middle">Binary edges with two operations and threshold 0.1.</figcaption>
             </td>
             <td>
-                <img src="images/Milan Cathedral 2.jpg" align="middle" width="400px"/>
-                <figcaption align="middle">Milan Cathedral 2. R: (0, 0), G: (-69, -11), B: (-125, -24)</figcaption>
+                <img src="images/1.2 Binary Single Convolution.jpg" align="middle" height="360px"/>
+                <figcaption align="middle">Binary edges with a single operation and threshold 0.1.</figcaption>
             </td>
         </tr>
     </table>
 </div>
+
+
+
+<h2 align="middle">Part 2</h2>
+<h3 align="left">Part 2.1</h3>
+<p>The high frequencies are obtained by subtracting the Gaussian kernel from the identity kernel which is simply a filter of zeros with a spike of 1 at the center. This difference is scaled by a "sharpness factor" chosen to be 1, and is added back to the identity kernel to obtain the sharpening filter</p>
+<div align="middle">
+    <table>
+        <tr>
+            <td>
+                <img src="images/taj.png" align="middle" width="360px"/>
+                <figcaption align="middle">Taj Mahal.</figcaption>
+            </td>
+            <td>
+                <img src="images/Sharpened taj.png" align="middle" width="360px"/>
+                <figcaption align="middle">Sharpened Taj Mahal.</figcaption>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <img src="images/genki 1.png" align="middle" width="360px"/>
+                <figcaption align="middle">Genki 1.</figcaption>
+            </td>
+            <td>
+                <img src="images/Sharpened genki 1.jpg" align="middle" width="360px"/>
+                <figcaption align="middle">Sharpened Genki 1.</figcaption>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <img src="images/hadelich.jpg" align="middle" width="360px"/>
+                <figcaption align="middle">Augustin Hadelich.</figcaption>
+            </td>
+            <td>
+                <img src="images/Sharpened hadelich.jpg" align="middle" width="360px"/>
+                <figcaption align="middle">Sharpened Augustin Hadelich.</figcaption>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <img src="images/benny.png" align="middle" width="360px"/>
+                <figcaption align="middle">Benny Tseng.</figcaption>
+            </td>
+            <td>
+                <img src="images/Sharpened benny.jpg" align="middle" width="360px"/>
+                <figcaption align="middle">Sharpened Benny Tseng.</figcaption>
+            </td>
+        </tr>
+    </table>
+</div>
+
+<p>Additionally below is a comparison of a sharp image of Genki (left), and then blurred then resharpened version. The images are almost precisely the same. A comparison using MSE over all RGB values yields an error of only <strong>9.260668230899897e-05</strong>.</p>
+<div align="middle">
+    <table>
+        <tr>
+            <td>
+                <img src="images/genki 2.png" align="middle" width="360px"/>
+                <figcaption align="middle">Genki 2.</figcaption>
+            </td>
+            <td>
+                <img src="images/Resharpened genki 2.jpg" align="middle" width="360px"/>
+                <figcaption align="middle">Blurred then resharpened Genki 2.</figcaption>
+            </td>
+        </tr>
+    </table>
+</div>
+
+<h3 align="left">Part 2.2</h3>
+<p>Shown is a hybrid image of Genki and Joy, alongside the original images with <strong>sigma</strong> chosen to be <strong>18</strong>.</p>
+<div align="middle">
+    <table>
+        <tr>
+            <td>
+                <img src="code/data/genki 1.jpg" align="middle" height="360px"/>
+                <figcaption align="middle">Genki.</figcaption>
+            </td>
+            <td>
+                <img src="code/data/joy.jpg" align="middle" height="360px"/>
+                <figcaption align="middle">Joy.</figcaption>
+            </td>
+            <td>
+                <img src="images/Hybrid Joy+Genki.jpg" align="middle" height="360px"/>
+                <figcaption align="middle">Hybrid of Joy and Genki with sigma 18.</figcaption>
+            </td>
+        </tr>
+    </table>
+</div>
+
+<p>The frequencies of the low pass filter result on Genki, and the high pass filter result on Joy are shown as well, separately before being combined.</p>
+<div align="middle">
+    <table>
+        <tr>
+            <td>
+                <img src="images/Low Frequency Genki.png" align="middle" height="360px"/>
+                <figcaption align="middle">FFT result on low frequencies of Genki.</figcaption>
+            </td>
+            <td>
+                <img src="images/High Frequency Joy.png" align="middle" height="360px"/>
+                <figcaption align="middle">FFT result on high frequencies of Joy.</figcaption>
+            </td>
+        </tr>
+    </table>
+</div>
+
+<p>Below are two more successful image pairs and their hybrid, as well as the chosen sigmas.</p>
+<div align="middle">
+    <table>
+        <tr>
+            <td>
+                <img src="code/data/brett yang.jpg" align="middle" height="320px"/>
+                <figcaption align="middle">Brett Yang.</figcaption>
+            </td>
+            <td>
+                <img src="code/data/eddy chen.jpg" align="middle" height="320px"/>
+                <figcaption align="middle">Eddy Chen.</figcaption>
+            </td>
+            <td>
+                <img src="images/Hybrid Brett+Eddy.png" align="middle" height="320px"/>
+                <figcaption align="middle">Hybrid of Brett and Eddy with sigma 9.</figcaption>
+            </td>
+        </tr>
+    </table>
+</div>
+<div align="middle">
+    <table>
+        <tr>
+            <td>
+                <img src="code/data/miyu 2.jpg" align="middle" height="320px"/>
+                <figcaption align="middle">Cursed Miyu.</figcaption>
+            </td>
+            <td>
+                <img src="code/data/miyu 1.jpg" align="middle" height="320px"/>
+                <figcaption align="middle">Cursed Miyu.</figcaption>
+            </td>
+            <td>
+                <img src="images/Ultra Cursed Miyu.png" align="middle" height="320px"/>
+                <figcaption align="middle">Ultra Cursed Miyu with sigma 50.</figcaption>
+            </td>
+        </tr>
+    </table>
+</div>
+<p>Finally, a hybrid of the two images below was not successful. The reason for this was a large enough difference in the poses, that if the faces were aligned, then the high frequency of the jumbled environment creates a mess in the surroundings, while aligning the environment causes a mismatch in pose.</p>
+<div align="middle">
+    <table>
+        <tr>
+            <td>
+                <img src="code/data/dad.jpg" align="middle" height="320px"/>
+                <figcaption align="middle">Dad.</figcaption>
+            </td>
+            <td>
+                <img src="code/data/wengenn.jpg" align="middle" height="320px"/>
+                <figcaption align="middle">Wengenn.</figcaption>
+            </td>
+            <td>
+                <img src="images/Hybrid Dad+Wengenn.png" align="middle" height="320px"/>
+                <figcaption align="middle">Hybrid of Dad and Wengenn with sigma 20.</figcaption>
+            </td>
+        </tr>
+    </table>
+</div>
+
+
+<h3 align="left">Part 2.3</h3>
+<p>While a standard Gaussian/Laplacian pyramid maintains the kernel size while reducing the image dimensions, the stack maintains the image dimensions and therefore, to account for the implementation differences we must double the kernel size (and sigma) between every layer. Two functions are written, one to compute the Gaussian stack (for the mask) and one to compute both the Gaussian and Laplacian stack simultaneously (for the images). A starting standard deviation of <strong>1</strong> is used. Shown below are the results of the stack for every other layer, in the order of <strong>[Unmasked Image 1, Masked Image 1, Blended Images, Masked Image 2, Unmasked Image 2]</strong> from left to right. To better visualize the higher frequencies, the images are rescaled together to <strong>[0, 1]</strong>.</p>
+<div align="middle">
+    <table>
+        <tr>
+            <td>
+                <img src="images/Apple+Orange Blend/apple+orange frequency blend depth 0.jpg" align="middle" height="160px"/>
+                <figcaption align="middle">Depth 0.</figcaption>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <img src="images/Apple+Orange Blend/apple+orange frequency blend depth 2.jpg" align="middle" height="160px"/>
+                <figcaption align="middle">Depth 2.</figcaption>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <img src="images/Apple+Orange Blend/apple+orange frequency blend depth 4.jpg" align="middle" height="160px"/>
+                <figcaption align="middle">Depth 4.</figcaption>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <img src="images/Apple+Orange Blend/apple+orange frequency blend depth 6.jpg" align="middle" height="160px"/>
+                <figcaption align="middle">Depth 6.</figcaption>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <img src="images/Apple+Orange Blend/apple+orange frequency blend depth 8.jpg" align="middle" height="160px"/>
+                <figcaption align="middle">Depth 8.</figcaption>
+            </td>
+        </tr>
+    </table>
+</div>
+<p>Below is the final product obtained by summing the blended frequencies at each depth, in comparison with the two original images</p>
+<div align="middle">
+    <img src="images/Apple+Orange Blend/Apple+Orange Blend.jpg" align="middle" height="240px"/>
+    <figcaption align="middle">Apple, Oraple, and Orange.</figcaption>
+</div>
+
+
+<h3 align="left">Part 2.4</h3>
+<p>Shown below are three multiresolution blends, two of which use an unusual mask. Microsoft PowerPoint is used to facilitate tracing out the masks, as well as pre-padding images to the same shape. In addition, it can be noted that in pairs with large discrepancy between image sizes, the values of the padding cannot be assumed to be zero. Since the algorithm blends low frequencies more aggresively, assuming zero padding causes images to become darker. Therefore, we beforehand compute the average pixel value across both images and use that as the padding value. Additionally, it was noted for all three samples that the depth of the Laplacian stack must go to at least 10 in order to capture enough frequencies, or else the image becomes too dark. However, because the kernel size is also doubled for each layer, any depth beyond 12 becomes too large to compute.</strong>.</p>
+
+<h4 align="left">School Boys &#x00D7 Joy</h4>
+<div align="middle">
+    <table>
+        <tr>
+            <td>
+                <img src="images/School+Joy Blend/School+Joy frequency blend depth 0.jpg" align="middle" height="160px"/>
+                <figcaption align="middle">Depth 0.</figcaption>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <img src="images/School+Joy Blend/School+Joy frequency blend depth 2.jpg" align="middle" height="160px"/>
+                <figcaption align="middle">Depth 2.</figcaption>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <img src="images/School+Joy Blend/School+Joy frequency blend depth 4.jpg" align="middle" height="160px"/>
+                <figcaption align="middle">Depth 4.</figcaption>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <img src="images/School+Joy Blend/School+Joy frequency blend depth 6.jpg" align="middle" height="160px"/>
+                <figcaption align="middle">Depth 6.</figcaption>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <img src="images/School+Joy Blend/School+Joy frequency blend depth 8.jpg" align="middle" height="160px"/>
+                <figcaption align="middle">Depth 8.</figcaption>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <img src="images/School+Joy Blend/School+Joy frequency blend depth 10.jpg" align="middle" height="160px"/>
+                <figcaption align="middle">Depth 10.</figcaption>
+            </td>
+        </tr>
+    </table>
+</div>
+<div align="middle">
+    <table>
+        <tr>
+            <td>
+                <img src="code/data/school.jpg" align="middle" height="360px"/>
+                <figcaption align="middle">School boys.</figcaption>
+            </td>
+            <td>
+                <img src="images/School+Joy Blend/School Joy.jpg" align="middle" height="360px"/>
+                <figcaption align="middle">School Joy.</figcaption>
+            </td>
+            <td>
+                <img src="code/data/joy face.jpg" align="middle" height="360px"/>
+                <figcaption align="middle">Joy.</figcaption>
+            </td>
+        </tr>
+    </table>
+</div>
+
+<h4 align="left">Aurora Borealis &#x00D7 Starry Night</h4>
+<div align="middle">
+    <table>
+        <tr>
+            <td>
+                <img src="images/Aurora+Starry Night Blend/Aurora+Starry Night frequency blend depth 0.jpg" align="middle" height="160px"/>
+                <figcaption align="middle">Depth 0.</figcaption>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <img src="images/Aurora+Starry Night Blend/Aurora+Starry Night frequency blend depth 2.jpg" align="middle" height="160px"/>
+                <figcaption align="middle">Depth 2.</figcaption>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <img src="images/Aurora+Starry Night Blend/Aurora+Starry Night frequency blend depth 4.jpg" align="middle" height="160px"/>
+                <figcaption align="middle">Depth 4.</figcaption>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <img src="images/Aurora+Starry Night Blend/Aurora+Starry Night frequency blend depth 6.jpg" align="middle" height="160px"/>
+                <figcaption align="middle">Depth 6.</figcaption>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <img src="images/Aurora+Starry Night Blend/Aurora+Starry Night frequency blend depth 8.jpg" align="middle" height="160px"/>
+                <figcaption align="middle">Depth 8.</figcaption>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <img src="images/Aurora+Starry Night Blend/Aurora+Starry Night frequency blend depth 10.jpg" align="middle" height="160px"/>
+                <figcaption align="middle">Depth 10.</figcaption>
+            </td>
+        </tr>
+    </table>
+</div>
+<div align="middle">
+    <table>
+        <tr>
+            <td>
+                <img src="code/data/aurora.jpg" align="middle" height="270px"/>
+                <figcaption align="middle">Aurora Borealis.</figcaption>
+            </td>
+            <td>
+                <img src="images/Aurora+Starry Night Blend/Aurora Night.jpg" align="middle" height="270px"/>
+                <figcaption align="middle">Aurora Night.</figcaption>
+            </td>
+            <td>
+                <img src="code/data/starry night.jpg" align="middle" height="270px"/>
+                <figcaption align="middle">Starry Night.</figcaption>
+            </td>
+        </tr>
+    </table>
+</div>
+
+<h4 align="left">Dad's Snacks &#x00D7 Buff Miyu</h4>
+<div align="middle">
+    <table>
+        <tr>
+            <td>
+                <img src="images/Dad Snacks+Miyu Blend/Dad Snacks+Miyu frequency blend depth 0.jpg" align="middle" height="160px"/>
+                <figcaption align="middle">Depth 0.</figcaption>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <img src="images/Dad Snacks+Miyu Blend/Dad Snacks+Miyu frequency blend depth 2.jpg" align="middle" height="160px"/>
+                <figcaption align="middle">Depth 2.</figcaption>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <img src="images/Dad Snacks+Miyu Blend/Dad Snacks+Miyu frequency blend depth 4.jpg" align="middle" height="160px"/>
+                <figcaption align="middle">Depth 4.</figcaption>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <img src="images/Dad Snacks+Miyu Blend/Dad Snacks+Miyu frequency blend depth 6.jpg" align="middle" height="160px"/>
+                <figcaption align="middle">Depth 6.</figcaption>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <img src="images/Dad Snacks+Miyu Blend/Dad Snacks+Miyu frequency blend depth 8.jpg" align="middle" height="160px"/>
+                <figcaption align="middle">Depth 8.</figcaption>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <img src="images/Dad Snacks+Miyu Blend/Dad Snacks+Miyu frequency blend depth 10.jpg" align="middle" height="160px"/>
+                <figcaption align="middle">Depth 10.</figcaption>
+            </td>
+        </tr>
+    </table>
+</div>
+<div align="middle">
+    <table>
+        <tr>
+            <td>
+                <img src="code/data/dad snacks.jpg" align="middle" height="360px"/>
+                <figcaption align="middle">Dad's Snacks.</figcaption>
+            </td>
+            <td>
+                <img src="images/Dad Snacks+Miyu Blend/Miyu Snacks.jpg" align="middle" height="360px"/>
+                <figcaption align="middle">Buff Miyu's Snacks (and Small Miyu).</figcaption>
+            </td>
+            <td>
+                <img src="code/data/miyu face.jpg" align="middle" height="360px"/>
+                <figcaption align="middle">Buff Miyu.</figcaption>
+            </td>
+        </tr>
+    </table>
+</div>
+
+
 
 </body>
 </html>

@@ -2,3 +2,5 @@
 code/.DS_Store
 code/data/.DS_Store
 images/.DS_Store
+code/.idea/
+code/__pycache__/
