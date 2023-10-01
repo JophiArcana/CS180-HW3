@@ -24,457 +24,196 @@
 <body>
 
 <h1 align="middle">CS180 Intro to Computer Vision and Computational Photography</h1>
-<h1 align="middle">Project 2 by Wentinn Liao</h1>
+<h1 align="middle">Project 3 by Wentinn Liao</h1>
 
 <div>
-
     
-<h2 align="middle">Part 1</h2>
-<p>The gradient of the image with respect to <strong>x</strong> and <strong>y</strong> are taken by convolving the image with the provided filters <strong>Dx</strong> and <strong>Dy</strong>. If we take only take valid convolution, then we would get a dimension mismatch since each convolution reduces their respective dimension by length 1. Therefore, we use same size convolution (letting scipy decide which size to pad), stack them with <strong>np.stack</strong> and take the norm with <strong>np.linalg.norm</strong> with axis <strong>0</strong>.</p>
+    
 
-<h3 align="left">Part 1.1</h3>
-<p>Shown below is the result of edge detection using the magnitude of the gradient. The chosen threshold is <strong>0.23</strong> which captures most of the edges but still leaves some small artifacts.</p>
-<div align="middle">
-    <table>
-        <tr>
-            <td>
-                <img src="images/1.1 Dx.jpg" align="middle" height="360px"/>
-                <figcaption align="middle">Gradient of image with respect to x.</figcaption>
-            </td>
-            <td>
-                <img src="images/1.1 Dy.jpg" align="middle" height="360px"/>
-                <figcaption align="middle">Gradient of image with respect to y.</figcaption>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <img src="images/1.1 Gradient Magnitude.jpg" align="middle" height="360px"/>
-                <figcaption align="middle">Gradient magnitude.</figcaption>
-            </td>
-            <td>
-                <img src="images/1.1 Binary Gradient Magnitude.jpg" align="middle" height="360px"/>
-                <figcaption align="middle">Binary gradient magnitude with threshold 0.23.</figcaption>
-            </td>
-        </tr>
-    </table>
+    <h2 align="left">Part 1. Defining Correspondences</h2>
+    <p>Rather than implementing my own labeling tool, I simply used the provided one created by the former student. Because the backgrounds of the images were intentionally similar but slightly different in orientation, more points were added to ensure their alignment as well, resulting in a total of <strong>168</strong> keypoints in total. To construct the triangulation, the average of the keypoints of both images was taken and used to construct the Delaunay triangulation. The same set of simplices is then used for both images, as well as for the future warped images.</p>
+    <div align="middle">
+        <table>
+            <tr>
+                <td>
+                    <img src="code/data/wenlun.jpg" align="middle" height="360px"/>
+                    <figcaption align="middle">Wenlun.</figcaption>
+                </td>
+                <td>
+                    <img src="images/Wenlun+Dad/Wenlun triangulation.png" align="middle" height="360px"/>
+                    <figcaption align="middle">Wenlun keypoints and triangulation.</figcaption>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <img src="code/data/dad.jpg" align="middle" height="360px"/>
+                    <figcaption align="middle">Dad.</figcaption>
+                </td>
+                <td>
+                    <img src="images/Wenlun+Dad/Dad triangulation.png" align="middle" height="360px"/>
+                    <figcaption align="middle">Dad keypoints and triangulation.</figcaption>
+                </td>
+            </tr>
+        </table>
+    </div>
+    
+    
+    
+    <h2 align="left">Part 2. Computing the "Mid-way Face"</h2>
+    <p>Rather than writing separate code to compute the midway face, the code written for morphing in <strong>part 3</strong> is used to compute the midway image, with a both a warp fraction and dissolve fraction of <strong>0.5</strong>. The morph function is both more general, and done in batch with <strong>Numpy</strong> and <strong>TensorFlow</strong> operations, making it incredibly efficient, even for large image sizes and a high number of frames.</p>
+    <div align="middle">
+        <table>
+            <tr>
+                <td>
+                    <img src="code/data/wenlun.jpg" align="middle" height="360px"/>
+                    <figcaption align="middle">Wenlun.</figcaption>
+                </td>
+                <td>
+                    <img src="images/Wenlun+Dad/Midway image.png" align="middle" height="360px"/>
+                    <figcaption align="middle">Midway image.</figcaption>
+                </td>
+                <td>
+                    <img src="code/data/dad.jpg" align="middle" height="360px"/>
+                    <figcaption align="middle">Dad.</figcaption>
+                </td>
+            </tr>
+        </table>
+    </div>
+    
+    
+    
+    <h2 align="left">Part 3. The Morph Sequence</h2>
+    <p>All the functions used to implement the morph sequence were written in batch, which allows us to ultimately compute a morph sequence of <strong>100 frames</strong> in less than <strong>20 seconds</strong>.</p>
+    <p>First, the warp points are computed via an outer product between the warp fractionals and the difference between the image points, and adding it back to the starting image. To compute the backward affine transformations, the forward affines are computed by computing the forward affines for only the two endpoints and interpolating with the warp fractionals, and then batch inverting the sequence of forward matrices. This allows us to skip <strong>T</strong> matrix multiplications and replace them with scalar multiplications which saves a lot of time.</p>
+    <p>Unfortunately, the limitations of <strong>sk.draw</strong> requires to compute the polygons serially rather than in parallel. Furthermore, different morphs causes the triangles to be slightly different in shape, meaning the total number of pixels in each triangle may be different. This is remedied by padding using <strong>tf.keras.utils.pad_sequence</strong>. To reextract and remove the padding after multiplying by the backward affine matrices however takes some work. The secret is that I don't actually ever remove the effects of the padding. Usually we augment the pixel coordinates with <strong>1</strong>s to allow affine transformations to properly do translation. However, we first do the augmentation, then pad the sequences to equal lengths with <strong>0</strong>s. Now, the padded "pixel coordinates" will always transform to <strong>0</strong>s regardless of the affine transformation, and ignoring the augmentations means that all the real pixel coordinates will map correctly and <strong>(0, 0)</strong> will map to itself. The effect this has if we ignore it is simply that the resulting warped image will steal the top-leftmost pixel from the original image, which is negligible for the reasons that it is only a single pixel in the corner, and the corner of the warp will be similar to that of the original image anyways! This trick allows us to cut computational time by around <strong>30%</strong>, over both removing the padding, and not padding in the first place.</p>
+    <div align="middle">
+        <table>
+            <tr>
+                <td>
+                    <img src="code/data/wenlun.jpg" align="middle" height="360px"/>
+                    <figcaption align="middle">Wenlun.</figcaption>
+                </td>
+                <td>
+                    <img src="images/Wenlun+Dad/wenlun_dad_morph.gif" align="middle" height="360px"/>
+                    <figcaption align="middle">Morph sequence.</figcaption>
+                </td>
+                <td>
+                    <img src="code/data/dad.jpg" align="middle" height="360px"/>
+                    <figcaption align="middle">Dad.</figcaption>
+                </td>
+            </tr>
+        </table>
+    </div>
+    
+    
+    
+    <h2 align="left">Part 4. The "Mean face" of a population</h3>
+        <p>In order to better facilitate calculating the mean image, boundary points are added for additional structure. Specifically, a total of <strong>4k</strong> points are evenly spaced on the boundary of the image, aligned with the corners, where <strong>k = 4</strong> is chosen to be visually optimal. Additionally, the batch functions used to make <strong>part 3</strong> efficient need to be implemented in reverse. Rather than warping a single image to a batch of facial geometries as in the morph sequence, we are now warping multiple images to a single facial geometry to compute the mean face. The latter is generally faster because the time to determine which points are in the target triangle has the most overhead. The result of the average shown below.</p>
+        <div align="middle">
+            <img src="images/Dane averages/Dane average.jpg" align="middle" height="360px"/>
+            <figcaption align="middle">Average face over the Dane dataset.</figcaption>
+        </div>
+        
+        <p>A total of eight random samples are selected (actually nine but we ignore the middle one) to compare with the mean, which is represented in the center of the image grid. The center grid shows the original images. The leftmost grid shows each of the samples warped to the facial geometry of the mean, computed with <strong>warpFromBatch</strong> and the rightmost grid shows the mean warped to each of the facial geometries of the samples, computed with <strong>warpToBatch</strong>.</p>
+        <div align="middle">
+            <table>
+                <tr>
+                    <td>
+                        <img src="images/Dane averages/Dane samples_to_mean.jpg" align="middle" height="240px"/>
+                        <figcaption align="middle">Sampled faces warped to mean.</figcaption>
+                    </td>
+                    <td>
+                        <img src="images/Dane averages/Dane samples.jpg" align="middle" height="240px"/>
+                        <figcaption align="middle">Original faces from Dane dataset.</figcaption>
+                    </td>
+                    <td>
+                        <img src="images/Dane averages/Dane mean_to_samples.jpg" align="middle" height="240px"/>
+                        <figcaption align="middle">Mean warped to sampled faces.</figcaption>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        
+        <p>Finally, below we have my face along with the mean face interwarped. Due to differences in facial morphology resulting from the obvious difference in nationality, my face warped to the Danish mean geometry looks absolutely atrocious, but somehow the Danish mean warped to my facial geometry looks passable. Additionally below in between is a morph sequence between my face and the Danish average. Because the morph sequence also gradually dissolves a face the more it warps to the other facial geometry, the transition does not look as bad.</p>
+        <div align="middle">
+            <table>
+                <tr>
+                    <td>
+                        <img src="images/Wentinn+Danes/wentinn_to_mean.jpg" align="middle" height="240px"/>
+                        <figcaption align="middle">My face warped to Danish mean geometry.</figcaption>
+                    </td>
+                    <td>
+                        <img src="images/Wentinn+Danes/wentinn_dane_morph.gif" align="middle" height="240px"/>
+                        <figcaption align="middle">Morph sequence.</figcaption>
+                    </td>
+                    <td>
+                        <img src="images/Wentinn+Danes/mean_to_wentinn.jpg" align="middle" height="240px"/>
+                        <figcaption align="middle">Danish mean face warped to my geometry.</figcaption>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        
+        
+        
+        <h2 align="left">Part 5. Caricatures: Extrapolating from the mean</h2>
+        <p>To generate extrapolations with respect to an anchor image, both the image geometries and image pixels warped to the anchor geometry are extrapolated. Once the target pixels and target geometries are computed, additional batch to batch functions are implemented to allow warping <strong>B</strong> different images with the same geometry to <strong>B</strong> different geometries. With eight samples, three extrapolations each are constructed with <strong>&#x03B1 = 1.5, 2,</strong> and <strong>3</strong>, where &#x03B1 = 1 represents the original image with no extrapolation, and &#x03B1 = 0 represents the anchor image.</p>
+        <div align="middle">
+            <table>
+                <tr>
+                    <td>
+                        <img src="images/Extrapolations/Dane samples 2.jpg" align="middle" height="320px"/>
+                        <figcaption align="middle">Original images.</figcaption>
+                    </td>
+                    <td>
+                        <img src="images/Extrapolations/Dane extrapolations a=1.5.jpg" align="middle" height="320px"/>
+                        <figcaption align="middle">Caricature with &#x03B1 = 1.5.</figcaption>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <img src="images/Extrapolations/Dane extrapolations a=2.jpg" align="middle" height="320px"/>
+                        <figcaption align="middle">Caricature with &#x03B1 = 2.</figcaption>
+                    </td>
+                    <td>
+                        <img src="images/Extrapolations/Dane extrapolations a=3.jpg" align="middle" height="320px"/>
+                        <figcaption align="middle">Caricature with &#x03B1 = 3.</figcaption>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        
+        
+        
+        <h2 align="left">Bells & Whistles. Caricatures: Extrapolating with a PCA basis</h2>
+        <p>Extrapolation, or even modest interpolation using the Dane dataset (unsurprisingly) does not yield good results. The reason for this is that the dataset size too small. Even though intuitively it is larger than the number of significant principal components, i.e. facial feature sizes, color, hair, etc., it is definitely not large enough to plausibly approximate the ideal Gaussian distribution that lies behind PCA, especially in a <strong>921748</strong> (near 1 million) dimensional space. Due to this, the results of PCA are dominated, not by features that are strongly present in a large population, but large features that are present in an individual, e.g. a face being positioned further from the center, or lighting that causes overall face color to be significantly different. Even at a scale of <strong>&#x03B1 = 0.5</strong> (interpolation with a PCA basis vector), the image already almost exactly resembles a face directly from the dataset. Shown below are the results of the extrapolation on the first 8 principal components.</p>
+        <div align="middle">
+            <table>
+                <tr>
+                    <td>
+                        <img src="images/Basis Extrapolations/Dane basis extrapolations a=0.25.jpg" align="middle" height="320px"/>
+                        <figcaption align="middle">Basis extrapolation &#x03B1 = 0.25.</figcaption>
+                    </td>
+                    <td>
+                        <img src="images/Basis Extrapolations/Dane basis extrapolations a=0.5.jpg" align="middle" height="320px"/>
+                        <figcaption align="middle">Basis extrapolation &#x03B1 = 0.5.</figcaption>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <img src="images/Basis Extrapolations/Dane basis extrapolations a=1.jpg" align="middle" height="320px"/>
+                        <figcaption align="middle">Basis extrapolation &#x03B1 = 1.</figcaption>
+                    </td>
+                    <td>
+                        <img src="images/Basis Extrapolations/Dane basis extrapolations a=2.jpg" align="middle" height="320px"/>
+                        <figcaption align="middle">Basis extrapolation &#x03B1 = 2.</figcaption>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    
+
+        
 </div>
-
-
-<h3 align="left">Part 1.2</h3>
-<p>Shown below is the result of edge detection as a result of using finite difference and Gaussian blur. There are no differences between the two methods of computing the new edges because convolution is both commutative and associative. It can be observed however that the threshold is now much lower than previously which makes sense because blurring also reduces the edge sharpness, while also mitigating the "edges" produced by noise. The new threshold is <strong>0.1</strong>, but the edges are more well defined and there are few artifacts.</p>
-<div align="middle">
-    <table>
-        <tr>
-            <td>
-                <img src="images/1.2 Separate Convolution.png" align="middle" height="360px"/>
-                <figcaption align="middle">Edge detection as two operations.</figcaption>
-            </td>
-            <td>
-                <img src="images/1.2 Single Convolution.png" align="middle" height="360px"/>
-                <figcaption align="middle">Edge detection as a single operation.</figcaption>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <img src="images/1.2 Binary Separate Convolution.png" align="middle" height="360px"/>
-                <figcaption align="middle">Binary edges with two operations and threshold 0.1.</figcaption>
-            </td>
-            <td>
-                <img src="images/1.2 Binary Single Convolution.jpg" align="middle" height="360px"/>
-                <figcaption align="middle">Binary edges with a single operation and threshold 0.1.</figcaption>
-            </td>
-        </tr>
-    </table>
-</div>
-
-
-
-<h2 align="middle">Part 2</h2>
-<h3 align="left">Part 2.1</h3>
-<p>The high frequencies are obtained by subtracting the Gaussian kernel from the identity kernel which is simply a filter of zeros with a spike of 1 at the center. This difference is scaled by a "sharpness factor" chosen to be 1, and is added back to the identity kernel to obtain the sharpening filter</p>
-<div align="middle">
-    <table>
-        <tr>
-            <td>
-                <img src="images/taj.png" align="middle" width="360px"/>
-                <figcaption align="middle">Taj Mahal.</figcaption>
-            </td>
-            <td>
-                <img src="images/Sharpened taj.png" align="middle" width="360px"/>
-                <figcaption align="middle">Sharpened Taj Mahal.</figcaption>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <img src="images/genki 1.png" align="middle" width="360px"/>
-                <figcaption align="middle">Genki 1.</figcaption>
-            </td>
-            <td>
-                <img src="images/Sharpened genki 1.jpg" align="middle" width="360px"/>
-                <figcaption align="middle">Sharpened Genki 1.</figcaption>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <img src="images/hadelich.jpg" align="middle" width="360px"/>
-                <figcaption align="middle">Augustin Hadelich.</figcaption>
-            </td>
-            <td>
-                <img src="images/Sharpened hadelich.jpg" align="middle" width="360px"/>
-                <figcaption align="middle">Sharpened Augustin Hadelich.</figcaption>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <img src="images/benny.png" align="middle" width="360px"/>
-                <figcaption align="middle">Benny Tseng.</figcaption>
-            </td>
-            <td>
-                <img src="images/Sharpened benny.jpg" align="middle" width="360px"/>
-                <figcaption align="middle">Sharpened Benny Tseng.</figcaption>
-            </td>
-        </tr>
-    </table>
-</div>
-
-<p>Additionally below is a comparison of a sharp image of Genki (left), and then blurred then resharpened version. The images are almost precisely the same. A comparison using MSE over all RGB values yields an error of only <strong>9.260668230899897e-05</strong>.</p>
-<div align="middle">
-    <table>
-        <tr>
-            <td>
-                <img src="images/genki 2.png" align="middle" width="360px"/>
-                <figcaption align="middle">Genki 2.</figcaption>
-            </td>
-            <td>
-                <img src="images/Resharpened genki 2.jpg" align="middle" width="360px"/>
-                <figcaption align="middle">Blurred then resharpened Genki 2.</figcaption>
-            </td>
-        </tr>
-    </table>
-</div>
-
-<h3 align="left">Part 2.2</h3>
-<p>Shown is a hybrid image of Genki and Joy, alongside the original images with <strong>sigma</strong> chosen to be <strong>18</strong>.</p>
-<div align="middle">
-    <table>
-        <tr>
-            <td>
-                <img src="code/data/genki 1.jpg" align="middle" height="360px"/>
-                <figcaption align="middle">Genki.</figcaption>
-            </td>
-            <td>
-                <img src="code/data/joy.jpg" align="middle" height="360px"/>
-                <figcaption align="middle">Joy.</figcaption>
-            </td>
-            <td>
-                <img src="images/Hybrid Joy+Genki.jpg" align="middle" height="360px"/>
-                <figcaption align="middle">Hybrid of Joy and Genki with sigma 18.</figcaption>
-            </td>
-        </tr>
-    </table>
-</div>
-
-<p>The frequencies of the low pass filter result on Genki, and the high pass filter result on Joy are shown as well, separately before being combined.</p>
-<div align="middle">
-    <table>
-        <tr>
-            <td>
-                <img src="images/Low Frequency Genki.png" align="middle" height="360px"/>
-                <figcaption align="middle">FFT result on low frequencies of Genki.</figcaption>
-            </td>
-            <td>
-                <img src="images/High Frequency Joy.png" align="middle" height="360px"/>
-                <figcaption align="middle">FFT result on high frequencies of Joy.</figcaption>
-            </td>
-        </tr>
-    </table>
-</div>
-
-<p>Below are two more successful image pairs and their hybrid, as well as the chosen sigmas.</p>
-<div align="middle">
-    <table>
-        <tr>
-            <td>
-                <img src="code/data/brett yang.jpg" align="middle" height="320px"/>
-                <figcaption align="middle">Brett Yang.</figcaption>
-            </td>
-            <td>
-                <img src="code/data/eddy chen.jpg" align="middle" height="320px"/>
-                <figcaption align="middle">Eddy Chen.</figcaption>
-            </td>
-            <td>
-                <img src="images/Hybrid Brett+Eddy.png" align="middle" height="320px"/>
-                <figcaption align="middle">Hybrid of Brett and Eddy with sigma 9.</figcaption>
-            </td>
-        </tr>
-    </table>
-</div>
-<div align="middle">
-    <table>
-        <tr>
-            <td>
-                <img src="code/data/miyu 2.jpg" align="middle" height="320px"/>
-                <figcaption align="middle">Cursed Miyu.</figcaption>
-            </td>
-            <td>
-                <img src="code/data/miyu 1.jpg" align="middle" height="320px"/>
-                <figcaption align="middle">Cursed Miyu.</figcaption>
-            </td>
-            <td>
-                <img src="images/Ultra Cursed Miyu.png" align="middle" height="320px"/>
-                <figcaption align="middle">Ultra Cursed Miyu with sigma 50.</figcaption>
-            </td>
-        </tr>
-    </table>
-</div>
-<p>Finally, a hybrid of the two images below was not successful. The reason for this was a large enough difference in the poses, that if the faces were aligned, then the high frequency of the jumbled environment creates a mess in the surroundings, while aligning the environment causes a mismatch in pose.</p>
-<div align="middle">
-    <table>
-        <tr>
-            <td>
-                <img src="code/data/dad.jpg" align="middle" height="320px"/>
-                <figcaption align="middle">Dad.</figcaption>
-            </td>
-            <td>
-                <img src="code/data/wengenn.jpg" align="middle" height="320px"/>
-                <figcaption align="middle">Wengenn.</figcaption>
-            </td>
-            <td>
-                <img src="images/Hybrid Dad+Wengenn.png" align="middle" height="320px"/>
-                <figcaption align="middle">Hybrid of Dad and Wengenn with sigma 20.</figcaption>
-            </td>
-        </tr>
-    </table>
-</div>
-
-
-<h3 align="left">Part 2.3</h3>
-<p>While a standard Gaussian/Laplacian pyramid maintains the kernel size while reducing the image dimensions, the stack maintains the image dimensions and therefore, to account for the implementation differences we must double the kernel size (and sigma) between every layer. Two functions are written, one to compute the Gaussian stack (for the mask) and one to compute both the Gaussian and Laplacian stack simultaneously (for the images). A starting standard deviation of <strong>1</strong> is used. Shown below are the results of the stack for every other layer, in the order of <strong>[Unmasked Image 1, Masked Image 1, Blended Images, Masked Image 2, Unmasked Image 2]</strong> from left to right. To better visualize the higher frequencies, the images are rescaled together to <strong>[0, 1]</strong>.</p>
-<div align="middle">
-    <table>
-        <tr>
-            <td>
-                <img src="images/Apple+Orange Blend/apple+orange frequency blend depth 0.jpg" align="middle" height="160px"/>
-                <figcaption align="middle">Depth 0.</figcaption>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <img src="images/Apple+Orange Blend/apple+orange frequency blend depth 2.jpg" align="middle" height="160px"/>
-                <figcaption align="middle">Depth 2.</figcaption>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <img src="images/Apple+Orange Blend/apple+orange frequency blend depth 4.jpg" align="middle" height="160px"/>
-                <figcaption align="middle">Depth 4.</figcaption>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <img src="images/Apple+Orange Blend/apple+orange frequency blend depth 6.jpg" align="middle" height="160px"/>
-                <figcaption align="middle">Depth 6.</figcaption>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <img src="images/Apple+Orange Blend/apple+orange frequency blend depth 8.jpg" align="middle" height="160px"/>
-                <figcaption align="middle">Depth 8.</figcaption>
-            </td>
-        </tr>
-    </table>
-</div>
-<p>Below is the final product obtained by summing the blended frequencies at each depth, in comparison with the two original images</p>
-<div align="middle">
-    <img src="images/Apple+Orange Blend/Apple+Orange Blend.jpg" align="middle" height="240px"/>
-    <figcaption align="middle">Apple, Oraple, and Orange.</figcaption>
-</div>
-
-
-<h3 align="left">Part 2.4</h3>
-<p>Shown below are three multiresolution blends, two of which use an unusual mask. Microsoft PowerPoint is used to facilitate tracing out the masks, as well as pre-padding images to the same shape. In addition, it can be noted that in pairs with large discrepancy between image sizes, the values of the padding cannot be assumed to be zero. Since the algorithm blends low frequencies more aggresively, assuming zero padding causes images to become darker. Therefore, we beforehand compute the average pixel value across both images and use that as the padding value. Additionally, it was noted for all three samples that the depth of the Laplacian stack must go to at least 10 in order to capture enough frequencies, or else the image becomes too dark. However, because the kernel size is also doubled for each layer, any depth beyond 12 becomes too large to compute.</strong>.</p>
-
-<h4 align="left">School Boys &#x00D7 Joy</h4>
-<div align="middle">
-    <table>
-        <tr>
-            <td>
-                <img src="images/School+Joy Blend/School+Joy frequency blend depth 0.jpg" align="middle" height="160px"/>
-                <figcaption align="middle">Depth 0.</figcaption>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <img src="images/School+Joy Blend/School+Joy frequency blend depth 2.jpg" align="middle" height="160px"/>
-                <figcaption align="middle">Depth 2.</figcaption>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <img src="images/School+Joy Blend/School+Joy frequency blend depth 4.jpg" align="middle" height="160px"/>
-                <figcaption align="middle">Depth 4.</figcaption>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <img src="images/School+Joy Blend/School+Joy frequency blend depth 6.jpg" align="middle" height="160px"/>
-                <figcaption align="middle">Depth 6.</figcaption>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <img src="images/School+Joy Blend/School+Joy frequency blend depth 8.jpg" align="middle" height="160px"/>
-                <figcaption align="middle">Depth 8.</figcaption>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <img src="images/School+Joy Blend/School+Joy frequency blend depth 10.jpg" align="middle" height="160px"/>
-                <figcaption align="middle">Depth 10.</figcaption>
-            </td>
-        </tr>
-    </table>
-</div>
-<div align="middle">
-    <table>
-        <tr>
-            <td>
-                <img src="code/data/school.jpg" align="middle" height="360px"/>
-                <figcaption align="middle">School boys.</figcaption>
-            </td>
-            <td>
-                <img src="images/School+Joy Blend/School Joy.jpg" align="middle" height="360px"/>
-                <figcaption align="middle">School Joy.</figcaption>
-            </td>
-            <td>
-                <img src="code/data/joy face.jpg" align="middle" height="360px"/>
-                <figcaption align="middle">Joy.</figcaption>
-            </td>
-        </tr>
-    </table>
-</div>
-
-<h4 align="left">Aurora Borealis &#x00D7 Starry Night</h4>
-<div align="middle">
-    <table>
-        <tr>
-            <td>
-                <img src="images/Aurora+Starry Night Blend/Aurora+Starry Night frequency blend depth 0.jpg" align="middle" height="160px"/>
-                <figcaption align="middle">Depth 0.</figcaption>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <img src="images/Aurora+Starry Night Blend/Aurora+Starry Night frequency blend depth 2.jpg" align="middle" height="160px"/>
-                <figcaption align="middle">Depth 2.</figcaption>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <img src="images/Aurora+Starry Night Blend/Aurora+Starry Night frequency blend depth 4.jpg" align="middle" height="160px"/>
-                <figcaption align="middle">Depth 4.</figcaption>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <img src="images/Aurora+Starry Night Blend/Aurora+Starry Night frequency blend depth 6.jpg" align="middle" height="160px"/>
-                <figcaption align="middle">Depth 6.</figcaption>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <img src="images/Aurora+Starry Night Blend/Aurora+Starry Night frequency blend depth 8.jpg" align="middle" height="160px"/>
-                <figcaption align="middle">Depth 8.</figcaption>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <img src="images/Aurora+Starry Night Blend/Aurora+Starry Night frequency blend depth 10.jpg" align="middle" height="160px"/>
-                <figcaption align="middle">Depth 10.</figcaption>
-            </td>
-        </tr>
-    </table>
-</div>
-<div align="middle">
-    <table>
-        <tr>
-            <td>
-                <img src="code/data/aurora.jpg" align="middle" height="270px"/>
-                <figcaption align="middle">Aurora Borealis.</figcaption>
-            </td>
-            <td>
-                <img src="images/Aurora+Starry Night Blend/Aurora Night.jpg" align="middle" height="270px"/>
-                <figcaption align="middle">Aurora Night.</figcaption>
-            </td>
-            <td>
-                <img src="code/data/starry night.jpg" align="middle" height="270px"/>
-                <figcaption align="middle">Starry Night.</figcaption>
-            </td>
-        </tr>
-    </table>
-</div>
-
-<h4 align="left">Dad's Snacks &#x00D7 Buff Miyu</h4>
-<div align="middle">
-    <table>
-        <tr>
-            <td>
-                <img src="images/Dad Snacks+Miyu Blend/Dad Snacks+Miyu frequency blend depth 0.jpg" align="middle" height="160px"/>
-                <figcaption align="middle">Depth 0.</figcaption>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <img src="images/Dad Snacks+Miyu Blend/Dad Snacks+Miyu frequency blend depth 2.jpg" align="middle" height="160px"/>
-                <figcaption align="middle">Depth 2.</figcaption>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <img src="images/Dad Snacks+Miyu Blend/Dad Snacks+Miyu frequency blend depth 4.jpg" align="middle" height="160px"/>
-                <figcaption align="middle">Depth 4.</figcaption>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <img src="images/Dad Snacks+Miyu Blend/Dad Snacks+Miyu frequency blend depth 6.jpg" align="middle" height="160px"/>
-                <figcaption align="middle">Depth 6.</figcaption>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <img src="images/Dad Snacks+Miyu Blend/Dad Snacks+Miyu frequency blend depth 8.jpg" align="middle" height="160px"/>
-                <figcaption align="middle">Depth 8.</figcaption>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <img src="images/Dad Snacks+Miyu Blend/Dad Snacks+Miyu frequency blend depth 10.jpg" align="middle" height="160px"/>
-                <figcaption align="middle">Depth 10.</figcaption>
-            </td>
-        </tr>
-    </table>
-</div>
-<div align="middle">
-    <table>
-        <tr>
-            <td>
-                <img src="code/data/dad snacks.jpg" align="middle" height="360px"/>
-                <figcaption align="middle">Dad's Snacks.</figcaption>
-            </td>
-            <td>
-                <img src="images/Dad Snacks+Miyu Blend/Miyu Snacks.jpg" align="middle" height="360px"/>
-                <figcaption align="middle">Buff Miyu's Snacks (and Small Miyu).</figcaption>
-            </td>
-            <td>
-                <img src="code/data/miyu face.jpg" align="middle" height="360px"/>
-                <figcaption align="middle">Buff Miyu.</figcaption>
-            </td>
-        </tr>
-    </table>
-</div>
-
-
-
 </body>
 </html>
