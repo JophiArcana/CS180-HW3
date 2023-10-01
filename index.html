@@ -110,7 +110,7 @@
     <h2 align="left">Part 4. The "Mean face" of a population</h3>
         <p>In order to better facilitate calculating the mean image, boundary points are added for additional structure. Specifically, a total of <strong>4k</strong> points are evenly spaced on the boundary of the image, aligned with the corners, where <strong>k = 4</strong> is chosen to be visually optimal. Additionally, the batch functions used to make <strong>part 3</strong> efficient need to be implemented in reverse. Rather than warping a single image to a batch of facial geometries as in the morph sequence, we are now warping multiple images to a single facial geometry to compute the mean face. The latter is generally faster because the time to determine which points are in the target triangle has the most overhead. The result of the average shown below.</p>
         <div align="middle">
-            <img src="images/Dane averages/Dane average.jpg" align="middle" height="360px"/>
+            <img src="images/Dane Averages/Dane average.jpg" align="middle" height="360px"/>
             <figcaption align="middle">Average face over the Dane dataset.</figcaption>
         </div>
         
@@ -119,15 +119,15 @@
             <table>
                 <tr>
                     <td>
-                        <img src="images/Dane averages/Dane samples_to_mean.jpg" align="middle" height="240px"/>
+                        <img src="images/Dane Averages/Dane samples_to_mean.jpg" align="middle" height="240px"/>
                         <figcaption align="middle">Sampled faces warped to mean.</figcaption>
                     </td>
                     <td>
-                        <img src="images/Dane averages/Dane samples.jpg" align="middle" height="240px"/>
+                        <img src="images/Dane Averages/Dane samples.jpg" align="middle" height="240px"/>
                         <figcaption align="middle">Original faces from Dane dataset.</figcaption>
                     </td>
                     <td>
-                        <img src="images/Dane averages/Dane mean_to_samples.jpg" align="middle" height="240px"/>
+                        <img src="images/Dane Averages/Dane mean_to_samples.jpg" align="middle" height="240px"/>
                         <figcaption align="middle">Mean warped to sampled faces.</figcaption>
                     </td>
                 </tr>
